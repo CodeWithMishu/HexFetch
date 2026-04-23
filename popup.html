@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HexFetch</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="popup">
+    <header class="popup-header">
+      <h1>HexFetch</h1>
+      <p>Analyze and export page colors.</p>
+    </header>
+
+    <section class="actions" aria-label="Actions">
+      <button id="scanColorsBtn" type="button">Scan Colors</button>
+      <button id="toggleInspectorBtn" type="button">Toggle Inspector</button>
+      <button id="copyAllBtn" type="button">Copy All Colors</button>
+      <button id="exportCssBtn" type="button">Export CSS Variables</button>
+      <button id="exportTailwindBtn" type="button">Export Tailwind Config</button>
+      <button id="exportContrastReportBtn" type="button">Export Contrast Report</button>
+      <button id="savePaletteBtn" type="button">Save Palette</button>
+      <button id="exportSavedJsonBtn" type="button">Export Saved JSON</button>
+      <button id="importSavedJsonBtn" type="button">Import Saved JSON</button>
+      <input id="importSavedJsonInput" type="file" accept="application/json" class="visually-hidden" />
+    </section>
+
+    <section class="settings" aria-label="Settings">
+      <h2>Settings</h2>
+      <div class="settings-grid">
+        <label class="settings-field">
+          <span>Default Sort</span>
+          <select id="settingsDefaultSort">
+            <option value="usage-desc">Most Used</option>
+            <option value="usage-asc">Least Used</option>
+            <option value="hex-asc">HEX A-Z</option>
+            <option value="hex-desc">HEX Z-A</option>
+            <option value="luminance-asc">Darkest First</option>
+            <option value="luminance-desc">Lightest First</option>
+          </select>
+        </label>
+        <label class="settings-field">
+          <span>Default Contrast Mode</span>
+          <select id="settingsContrastMode">
+            <option value="normal">Normal Text</option>
+            <option value="large">Large Text</option>
+          </select>
+        </label>
+        <label class="settings-field">
+          <span>Max Swatches Rendered</span>
+          <input id="settingsMaxSwatches" type="number" min="20" max="500" step="10" />
+        </label>
+      </div>
+      <button id="saveSettingsBtn" type="button">Save Settings</button>
+    </section>
+
+    <section class="results">
+      <h2>Palette</h2>
+      <div class="palette-toolbar">
+        <p id="scanMeta" class="scan-meta">No scan yet.</p>
+        <div class="palette-controls" aria-label="Palette controls">
+          <input
+            id="paletteSearchInput"
+            class="palette-search"
+            type="search"
+            placeholder="Search hex..."
+            aria-label="Search palette colors"
+          />
+          <select id="paletteSortSelect" class="palette-sort" aria-label="Sort palette colors">
+            <option value="usage-desc">Most Used</option>
+            <option value="usage-asc">Least Used</option>
+            <option value="hex-asc">HEX A-Z</option>
+            <option value="hex-desc">HEX Z-A</option>
+            <option value="luminance-asc">Darkest First</option>
+            <option value="luminance-desc">Lightest First</option>
+          </select>
+        </div>
+        <div class="role-filters" aria-label="Color Role Filters">
+          <button type="button" class="role-filter active" data-role-filter="all">All</button>
+          <button type="button" class="role-filter" data-role-filter="text">Text</button>
+          <button type="button" class="role-filter" data-role-filter="background">Background</button>
+          <button type="button" class="role-filter" data-role-filter="border">Border</button>
+        </div>
+      </div>
+      <div id="paletteGrid" class="palette-grid" role="list"></div>
+    </section>
+
+    <section class="gradients">
+      <h2>Gradients</h2>
+      <div id="gradientList" class="gradient-list"></div>
+    </section>
+
+    <section class="contrast">
+      <h2>Contrast Checks</h2>
+      <div class="contrast-toolbar" aria-label="Contrast controls">
+        <div class="contrast-filters" aria-label="Contrast filter">
+          <button type="button" class="contrast-filter active" data-contrast-filter="all">All</button>
+          <button type="button" class="contrast-filter" data-contrast-filter="pass">AA+</button>
+          <button type="button" class="contrast-filter" data-contrast-filter="aaa">AAA</button>
+          <button type="button" class="contrast-filter" data-contrast-filter="fail">Fail</button>
+        </div>
+        <div class="contrast-size" aria-label="Text size mode">
+          <button type="button" class="contrast-size-btn active" data-contrast-size="normal">Normal Text</button>
+          <button type="button" class="contrast-size-btn" data-contrast-size="large">Large Text</button>
+        </div>
+      </div>
+      <div id="contrastList" class="contrast-list"></div>
+    </section>
+
+    <section class="saved">
+      <h2>Saved Palettes</h2>
+      <div id="savedPalettes" class="saved-palettes"></div>
+    </section>
+
+    <p id="statusMessage" class="status" aria-live="polite"></p>
+  </main>
+
+  <script src="utils.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

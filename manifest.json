@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "HexFetch",
+  "description": "Extract and analyze the full color palette from any webpage.",
+  "version": "1.0.0",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "HexFetch",
+    "default_popup": "popup.html"
+  },
+  "commands": {
+    "quick-scan": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Quick scan page colors"
+    },
+    "toggle-inspector": {
+      "suggested_key": {
+        "default": "Alt+Shift+I"
+      },
+      "description": "Toggle HexFetch inspector"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
