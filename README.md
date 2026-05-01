@@ -1,6 +1,8 @@
 # HexFetch
 
-HexFetch is a Manifest V3 Chrome extension that extracts, analyzes, and exports webpage color palettes with support for multiple export formats, saved palette management, and real-time palette application.
+A free, open-source Manifest V3 Chrome extension that extracts, analyzes, and exports webpage color palettes with support for multiple export formats, saved palette management, and real-time palette application.
+
+**License:** [MIT](LICENSE) | **Status:** Active Development
 
 ## Features
 
@@ -396,3 +398,34 @@ HexFetch is distributed free on GitHub (no Chrome Web Store fee required). Users
 - Multi-page batch scanning
 - Custom color rules and filters
 - Palette versioning and history tracking
+
+## Contributing
+
+Contributions are welcome! Whether it's bug reports, feature requests, or code contributions:
+
+1. **Report a bug** - Open an issue with details and steps to reproduce
+2. **Suggest a feature** - Open an issue describing the enhancement
+3. **Submit code** - Fork the repository, create a branch, and submit a pull request
+4. **Improve docs** - Help clarify documentation or add examples
+
+### Development
+```bash
+git clone https://github.com/yourusername/HexFetch.git
+cd HexFetch
+# Make your changes
+git add .
+git commit -m "Description of changes"
+git push origin your-branch
+```
+
+Then create a pull request on GitHub.
+
+## License
+
+HexFetch is released under the [MIT License](LICENSE). You're free to use, modify, and distribute this extension for personal or commercial purposes.
+
+## Support
+
+- **Found a bug?** Open an [issue](https://github.com/yourusername/HexFetch/issues)
+- **Have a question?** Check [Discussions](https://github.com/yourusername/HexFetch/discussions) or open an issue
+- **Want to contribute?** See the [Contributing](#contributing) section above
