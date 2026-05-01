@@ -9,20 +9,29 @@
 <body>
   <main class="popup">
     <header class="popup-header">
+      <span class="popup-logo" aria-hidden="true"></span>
       <h1>HexFetch</h1>
       <p>Analyze and export page colors.</p>
     </header>
 
     <section class="actions" aria-label="Actions">
       <button id="scanColorsBtn" type="button">Scan Colors</button>
+      <button id="scanSelectedBtn" type="button">Scan Selected</button>
       <button id="toggleInspectorBtn" type="button">Toggle Inspector</button>
+      <button id="applyPaletteBtn" type="button">Apply Palette</button>
+      <button id="clearAppliedPaletteBtn" type="button">Clear Applied</button>
       <button id="copyAllBtn" type="button">Copy All Colors</button>
-      <button id="exportCssBtn" type="button">Export CSS Variables</button>
-      <button id="exportTailwindBtn" type="button">Export Tailwind Config</button>
+      <button id="exportCssBtn" type="button">CSS File + Copy</button>
+      <button id="exportTailwindBtn" type="button">Tailwind + Copy</button>
+      <button id="exportScssBtn" type="button">SCSS + Copy</button>
+      <button id="exportLessBtn" type="button">Less + Copy</button>
+      <button id="exportTokensBtn" type="button">Tokens + Copy</button>
       <button id="exportContrastReportBtn" type="button">Export Contrast Report</button>
       <button id="savePaletteBtn" type="button">Save Palette</button>
       <button id="exportSavedJsonBtn" type="button">Export Saved JSON</button>
+      <button id="exportShareCodeBtn" type="button">Copy Share Code</button>
       <button id="importSavedJsonBtn" type="button">Import Saved JSON</button>
+      <button id="importShareCodeBtn" type="button">Import Share Code</button>
       <input id="importSavedJsonInput" type="file" accept="application/json" class="visually-hidden" />
     </section>
 
@@ -104,6 +113,12 @@
           <button type="button" class="contrast-size-btn active" data-contrast-size="normal">Normal Text</button>
           <button type="button" class="contrast-size-btn" data-contrast-size="large">Large Text</button>
         </div>
+        <div class="contrast-picker" aria-label="Manual contrast preview">
+          <select id="contrastTextSelect" aria-label="Text color"></select>
+          <select id="contrastBackgroundSelect" aria-label="Background color"></select>
+          <button type="button" id="contrastPreviewBtn">Preview Pair</button>
+        </div>
+        <p id="contrastResult" class="contrast-result">Choose two colors to preview contrast.</p>
       </div>
       <div id="contrastList" class="contrast-list"></div>
     </section>

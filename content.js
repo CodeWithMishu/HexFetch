@@ -12,6 +12,7 @@
   let inspectorHoverElement = null;
   let overlayEl = null;
   let tooltipEl = null;
+  let appliedPaletteStyleEl = null;
 
   function normalizeValue(value) {
     return (value || "").trim().toLowerCase();
@@ -309,8 +310,21 @@
     item.roles[role] += 1;
   }
 
-  function extractPageColors() {
-    const elements = document.querySelectorAll("*");
+  function collectElements(root) {
+    if (!root) {
+      return [];
+    }
+
+    if (root === document) {
+      return Array.from(document.querySelectorAll("*"));
+    }
+
+    const descendants = root.querySelectorAll ? Array.from(root.querySelectorAll("*")) : [];
+    return [root, ...descendants];
+  }
+
+  function extractPageColors(root = document) {
+    const elements = collectElements(root);
     const colorMap = new Map();
     const gradientMap = new Map();
 
@@ -376,6 +390,59 @@
       scannedElements: elements.length,
       timestamp: Date.now()
     };
+  }
+
+  function buildAppliedPaletteCss(palette) {
+    const colors = Array.isArray(palette && palette.colors) ? palette.colors : [];
+    const lines = colors.slice(0, 24).map((entry, index) => `  --hexfetch-color-${index + 1}: ${entry.hex};`);
+    return [
+      ":root {",
+      ...lines,
+      "}",
+      "html[data-hexfetch-applied='true'] {",
+      "  outline: 2px solid rgba(76, 201, 240, 0.28);",
+      "  outline-offset: -2px;",
+      "}"
+    ].join("\n");
+  }
+
+  function applyPaletteToPage(palette) {
+    if (!palette || !Array.isArray(palette.colors) || !palette.colors.length) {
+      throw new Error("No palette available to apply.");
+    }
+
+    if (!appliedPaletteStyleEl) {
+      appliedPaletteStyleEl = document.createElement("style");
+      appliedPaletteStyleEl.id = "hexfetch-applied-palette";
+      document.documentElement.appendChild(appliedPaletteStyleEl);
+    }
+
+    appliedPaletteStyleEl.textContent = buildAppliedPaletteCss(palette);
+    document.documentElement.dataset.hexfetchApplied = "true";
+
+    return {
+      applied: true,
+      variables: Math.min(Array.isArray(palette.colors) ? palette.colors.length : 0, 24)
+    };
+  }
+
+  function clearAppliedPalette() {
+    if (appliedPaletteStyleEl && appliedPaletteStyleEl.parentNode) {
+      appliedPaletteStyleEl.parentNode.removeChild(appliedPaletteStyleEl);
+    }
+
+    appliedPaletteStyleEl = null;
+    delete document.documentElement.dataset.hexfetchApplied;
+
+    return { applied: false };
+  }
+
+  function getTargetForExtraction(scope) {
+    if (scope === "locked" && inspectorLockedElement) {
+      return inspectorLockedElement;
+    }
+
+    return document;
   }
 
   function ensureInspectorUI() {
@@ -535,6 +602,28 @@
     try {
       if (message.type === "HEXFETCH_EXTRACT_COLORS") {
         const payload = extractPageColors();
+        sendResponse({ ok: true, payload });
+      }
+
+      if (message.type === "HEXFETCH_EXTRACT_TARGET_COLORS") {
+        const target = getTargetForExtraction(message.scope);
+
+        if (message.scope === "locked" && !inspectorLockedElement) {
+          sendResponse({ ok: false, error: "Lock a target element with the inspector before scanning a selection." });
+          return;
+        }
+
+        const payload = extractPageColors(target);
+        sendResponse({ ok: true, payload });
+      }
+
+      if (message.type === "HEXFETCH_APPLY_PALETTE") {
+        const payload = applyPaletteToPage(message.palette);
+        sendResponse({ ok: true, payload });
+      }
+
+      if (message.type === "HEXFETCH_CLEAR_APPLIED_PALETTE") {
+        const payload = clearAppliedPalette();
         sendResponse({ ok: true, payload });
       }
 

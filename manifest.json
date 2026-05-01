@@ -3,12 +3,24 @@
   "name": "HexFetch",
   "description": "Extract and analyze the full color palette from any webpage.",
   "version": "1.0.0",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "icons": {
+    "16": "logo.png",
+    "32": "logo.png",
+    "48": "logo.png",
+    "128": "logo.png"
+  },
+  "permissions": ["activeTab", "scripting", "storage", "tabs", "clipboardWrite", "downloads"],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
     "default_title": "HexFetch",
+    "default_icon": {
+      "16": "logo.png",
+      "32": "logo.png",
+      "48": "logo.png",
+      "128": "logo.png"
+    },
     "default_popup": "popup.html"
   },
   "commands": {
@@ -23,6 +35,24 @@
         "default": "Alt+Shift+I"
       },
       "description": "Toggle HexFetch inspector"
+    },
+    "scan-selected": {
+      "suggested_key": {
+        "default": "Alt+Shift+L"
+      },
+      "description": "Scan locked inspector target"
+    },
+    "apply-palette": {
+      "suggested_key": {
+        "default": "Alt+Shift+A"
+      },
+      "description": "Apply latest palette to page"
+    },
+    "clear-applied-palette": {
+      "description": "Clear applied palette from page"
+    },
+    "save-palette": {
+      "description": "Save latest palette"
     }
   },
   "content_scripts": [

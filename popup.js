@@ -16,6 +16,9 @@ const state = {
   savedPalettes: [],
   activeContrastFilter: "all",
   contrastLargeText: false,
+  contrastTextHex: "",
+  contrastBackgroundHex: "",
+  appliedPaletteActive: false,
   paletteSearchTerm: "",
   paletteSortMode: "usage-desc",
   settings: { ...DEFAULT_SETTINGS }
@@ -23,14 +26,22 @@ const state = {
 
 const ui = {
   scanColorsBtn: document.getElementById("scanColorsBtn"),
+  scanSelectedBtn: document.getElementById("scanSelectedBtn"),
   toggleInspectorBtn: document.getElementById("toggleInspectorBtn"),
+  applyPaletteBtn: document.getElementById("applyPaletteBtn"),
+  clearAppliedPaletteBtn: document.getElementById("clearAppliedPaletteBtn"),
   copyAllBtn: document.getElementById("copyAllBtn"),
   exportCssBtn: document.getElementById("exportCssBtn"),
   exportTailwindBtn: document.getElementById("exportTailwindBtn"),
+  exportScssBtn: document.getElementById("exportScssBtn"),
+  exportLessBtn: document.getElementById("exportLessBtn"),
+  exportTokensBtn: document.getElementById("exportTokensBtn"),
   exportContrastReportBtn: document.getElementById("exportContrastReportBtn"),
   savePaletteBtn: document.getElementById("savePaletteBtn"),
   exportSavedJsonBtn: document.getElementById("exportSavedJsonBtn"),
+  exportShareCodeBtn: document.getElementById("exportShareCodeBtn"),
   importSavedJsonBtn: document.getElementById("importSavedJsonBtn"),
+  importShareCodeBtn: document.getElementById("importShareCodeBtn"),
   importSavedJsonInput: document.getElementById("importSavedJsonInput"),
   settingsDefaultSort: document.getElementById("settingsDefaultSort"),
   settingsContrastMode: document.getElementById("settingsContrastMode"),
@@ -42,6 +53,10 @@ const ui = {
   paletteGrid: document.getElementById("paletteGrid"),
   gradientList: document.getElementById("gradientList"),
   contrastList: document.getElementById("contrastList"),
+  contrastTextSelect: document.getElementById("contrastTextSelect"),
+  contrastBackgroundSelect: document.getElementById("contrastBackgroundSelect"),
+  contrastPreviewBtn: document.getElementById("contrastPreviewBtn"),
+  contrastResult: document.getElementById("contrastResult"),
   savedPalettes: document.getElementById("savedPalettes"),
   statusMessage: document.getElementById("statusMessage"),
   roleFilterButtons: Array.from(document.querySelectorAll("[data-role-filter]")),
@@ -110,8 +125,193 @@ async function withReadyContentScript(task) {
   return task(tab);
 }
 
+function encodeShareCode(payload) {
+  const json = JSON.stringify(payload);
+  const bytes = new TextEncoder().encode(json);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return `HEXFETCH:${btoa(binary)}`;
+}
+
+function decodeShareCode(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("HEXFETCH:")) {
+    return null;
+  }
+
+  try {
+    const binary = atob(trimmed.slice("HEXFETCH:".length));
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return null;
+  }
+}
+
 async function safeWriteClipboard(text) {
-  await navigator.clipboard.writeText(text);
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+
+  if (!copied) {
+    throw new Error("Unable to copy to clipboard.");
+  }
+}
+
+async function exportTextAsset(filename, content, contentType, successMessage) {
+  await Promise.all([
+    safeWriteClipboard(content),
+    downloadTextFile(filename, content, contentType)
+  ]);
+
+  setStatus(successMessage);
+}
+
+function getCurrentPaletteSource() {
+  if (!state.palette || !Array.isArray(state.palette.colors) || !state.palette.colors.length) {
+    return [];
+  }
+
+  return getFilteredColors(state.palette.colors, state.activeRoleFilter);
+}
+
+function formatContrastRatio(ratio) {
+  return typeof ratio === "number" ? `${ratio.toFixed(2)}:1` : "N/A";
+}
+
+function updateContrastPairSelectors() {
+  const colors = getCurrentPaletteSource();
+  const options = colors.length
+    ? colors.map((entry) => `<option value="${entry.hex}">${entry.hex}</option>`).join("")
+    : '<option value="">No colors available</option>';
+
+  if (ui.contrastTextSelect) {
+    ui.contrastTextSelect.innerHTML = options;
+    ui.contrastTextSelect.value = state.contrastTextHex || (colors[0] && colors[0].hex) || "";
+    state.contrastTextHex = ui.contrastTextSelect.value;
+  }
+
+  if (ui.contrastBackgroundSelect) {
+    ui.contrastBackgroundSelect.innerHTML = options;
+    ui.contrastBackgroundSelect.value = state.contrastBackgroundHex || (colors[1] && colors[1].hex) || (colors[0] && colors[0].hex) || "";
+    state.contrastBackgroundHex = ui.contrastBackgroundSelect.value;
+  }
+}
+
+function renderManualContrastPreview() {
+  if (!ui.contrastResult) {
+    return;
+  }
+
+  if (!state.contrastTextHex || !state.contrastBackgroundHex) {
+    ui.contrastResult.textContent = "Choose two colors to preview contrast.";
+    ui.contrastResult.classList.remove("pass", "fail");
+    return;
+  }
+
+  const ratio = HexFetchUtils.contrastRatio(state.contrastTextHex, state.contrastBackgroundHex);
+  const rating = HexFetchUtils.wcagRating(ratio, { largeText: state.contrastLargeText });
+  ui.contrastResult.textContent = `${state.contrastTextHex} on ${state.contrastBackgroundHex} = ${formatContrastRatio(ratio)} (${rating.label})`;
+  ui.contrastResult.classList.toggle("pass", Boolean(rating.pass));
+  ui.contrastResult.classList.toggle("fail", !rating.pass);
+}
+
+function getSelectedContrastPair() {
+  return {
+    textHex: state.contrastTextHex,
+    backgroundHex: state.contrastBackgroundHex
+  };
+}
+
+async function exportShareCode() {
+  if (!state.savedPalettes.length) {
+    setStatus("Save a palette before creating a share code.", true);
+    return;
+  }
+
+  const payload = {
+    exportedAt: Date.now(),
+    palettes: state.savedPalettes
+  };
+
+  const shareCode = encodeShareCode(payload);
+  await safeWriteClipboard(shareCode);
+  setStatus("Copied share code for your saved palettes.");
+}
+
+async function applyPaletteToPage() {
+  if (!state.palette || !Array.isArray(state.palette.colors) || !state.palette.colors.length) {
+    setStatus("Scan colors before applying a palette.", true);
+    return;
+  }
+
+  const response = await withReadyContentScript((tab) => {
+    return sendTabMessage(tab.id, {
+      type: "HEXFETCH_APPLY_PALETTE",
+      palette: state.palette
+    });
+  });
+
+  if (!response || !response.ok) {
+    throw new Error(response && response.error ? response.error : "Unable to apply palette.");
+  }
+
+  state.appliedPaletteActive = true;
+  ui.applyPaletteBtn.classList.add("active");
+  ui.clearAppliedPaletteBtn.disabled = false;
+  setStatus(`Applied ${response.payload.variables} CSS variables to the page.`);
+}
+
+async function clearAppliedPalette() {
+  const response = await withReadyContentScript((tab) => {
+    return sendTabMessage(tab.id, { type: "HEXFETCH_CLEAR_APPLIED_PALETTE" });
+  });
+
+  if (!response || !response.ok) {
+    throw new Error(response && response.error ? response.error : "Unable to clear applied palette.");
+  }
+
+  state.appliedPaletteActive = false;
+  ui.applyPaletteBtn.classList.remove("active");
+  ui.clearAppliedPaletteBtn.disabled = true;
+  setStatus("Removed applied palette from the page.");
+}
+
+async function scanSelectedElement() {
+  try {
+    const response = await withReadyContentScript((tab) => sendTabMessage(tab.id, { type: "HEXFETCH_EXTRACT_TARGET_COLORS", scope: "locked" }));
+    if (!response || !response.ok) {
+      throw new Error(response && response.error ? response.error : "Scan failed.");
+    }
+
+    state.palette = response.payload;
+    renderPalette(response.payload.colors);
+    renderGradients(response.payload.gradients);
+    renderContrast(response.payload);
+    updateContrastPairSelectors();
+    setScanMeta(`${response.payload.colors.length} unique colors • ${response.payload.gradients.length} gradients • ${response.payload.scannedElements} elements`);
+    setStatus(`Scanned the locked inspector target (${response.payload.scannedElements} elements).`);
+  } catch (error) {
+    setStatus(error.message || "Lock an element with the inspector before scanning a selection.", true);
+  }
 }
 
 function renderPalette(colors) {
@@ -138,6 +338,10 @@ function renderPalette(colors) {
     hex.className = "swatch-hex";
     hex.textContent = color.hex;
 
+    const family = document.createElement("p");
+    family.className = "swatch-family";
+    family.textContent = color.family ? color.family.replace(/-/g, " ") : "unknown";
+
     const count = document.createElement("p");
     count.className = "swatch-count";
     count.textContent = `${color.count} uses`;
@@ -157,10 +361,12 @@ function renderPalette(colors) {
       }, 700);
     });
 
-    meta.append(hex, count);
+    meta.append(hex, family, count);
     item.append(preview, meta, copyChip);
     ui.paletteGrid.appendChild(item);
   }
+
+  updateContrastPairSelectors();
 }
 
 function sanitizeSettings(settings) {
@@ -510,11 +716,67 @@ function renderSavedPalettes(items) {
     const wrapper = document.createElement("article");
     wrapper.className = "saved-item";
 
+    if (item.pinned) {
+      wrapper.classList.add("pinned");
+    }
+
+    const header = document.createElement("div");
+    header.className = "saved-header";
+
+    const thumbnail = document.createElement("div");
+    thumbnail.className = "saved-thumbnail";
+    if (item.thumbnail) {
+      const image = document.createElement("img");
+      image.src = item.thumbnail;
+      image.alt = `${item.name} screenshot`;
+      thumbnail.appendChild(image);
+    } else {
+      thumbnail.textContent = "No preview";
+    }
+
     const title = document.createElement("h3");
     title.textContent = item.name;
 
     const details = document.createElement("p");
     details.textContent = `${item.colors.length} colors • ${new Date(item.savedAt).toLocaleString()}`;
+
+    const tagList = document.createElement("div");
+    tagList.className = "saved-tags";
+    const tags = Array.isArray(item.tags) ? item.tags : [];
+    for (const tag of tags) {
+      const chip = document.createElement("span");
+      chip.className = "saved-tag";
+      chip.textContent = tag;
+      tagList.appendChild(chip);
+    }
+
+    const noteLabel = document.createElement("label");
+    noteLabel.className = "saved-note";
+
+    const noteText = document.createElement("span");
+    noteText.textContent = "Note";
+
+    const noteField = document.createElement("textarea");
+    noteField.value = item.note || "";
+    noteField.rows = 2;
+    noteField.placeholder = "Add a note";
+    noteField.addEventListener("change", async () => {
+      const updated = state.savedPalettes.map((palette) => {
+        if (palette.id !== item.id) {
+          return palette;
+        }
+
+        return {
+          ...palette,
+          note: noteField.value.trim()
+        };
+      });
+
+      await persistSavedPalettes(updated);
+      setStatus("Saved palette note updated.");
+    });
+
+    noteLabel.append(noteText, noteField);
 
     const actions = document.createElement("div");
     actions.className = "saved-actions";
@@ -531,15 +793,28 @@ function renderSavedPalettes(items) {
     copyBtn.dataset.paletteId = item.id;
     copyBtn.textContent = "Copy";
 
+    const shareBtn = document.createElement("button");
+    shareBtn.type = "button";
+    shareBtn.dataset.savedAction = "share";
+    shareBtn.dataset.paletteId = item.id;
+    shareBtn.textContent = "Share";
+
+    const pinBtn = document.createElement("button");
+    pinBtn.type = "button";
+    pinBtn.dataset.savedAction = "pin";
+    pinBtn.dataset.paletteId = item.id;
+    pinBtn.textContent = item.pinned ? "Unpin" : "Pin";
+
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
     deleteBtn.dataset.savedAction = "delete";
     deleteBtn.dataset.paletteId = item.id;
     deleteBtn.textContent = "Delete";
 
-    actions.append(loadBtn, copyBtn, deleteBtn);
+    actions.append(loadBtn, copyBtn, shareBtn, pinBtn, deleteBtn);
 
-    wrapper.append(title, details, actions);
+    header.append(thumbnail, title);
+    wrapper.append(header, details, tagList, noteLabel, actions);
     ui.savedPalettes.appendChild(wrapper);
   }
 }
@@ -547,15 +822,21 @@ function renderSavedPalettes(items) {
 async function loadSavedPalettes() {
   const result = await chrome.storage.local.get([STORAGE_KEY]);
   const items = Array.isArray(result[STORAGE_KEY]) ? result[STORAGE_KEY] : [];
-  state.savedPalettes = items;
-  renderSavedPalettes(items);
+  const sorted = items
+    .slice()
+    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.savedAt - a.savedAt);
+  state.savedPalettes = sorted;
+  renderSavedPalettes(sorted);
   return items;
 }
 
 async function persistSavedPalettes(items) {
-  state.savedPalettes = items;
-  await chrome.storage.local.set({ [STORAGE_KEY]: items });
-  renderSavedPalettes(items);
+  const sorted = items
+    .slice()
+    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.savedAt - a.savedAt);
+  state.savedPalettes = sorted;
+  await chrome.storage.local.set({ [STORAGE_KEY]: sorted });
+  renderSavedPalettes(sorted);
 }
 
 async function scanColors() {
@@ -620,8 +901,12 @@ async function exportCssVariables() {
 
   const source = getFilteredColors(state.palette.colors, state.activeRoleFilter);
   const output = HexFetchUtils.buildCssVariables(source);
-  await safeWriteClipboard(output);
-  setStatus("CSS variables copied to clipboard.");
+  await exportTextAsset(
+    "hexfetch-variables.css",
+    output,
+    "text/css",
+    "CSS variables copied to clipboard and downloaded as a .css file."
+  );
 }
 
 async function exportTailwindConfig() {
@@ -632,8 +917,60 @@ async function exportTailwindConfig() {
 
   const source = getFilteredColors(state.palette.colors, state.activeRoleFilter);
   const output = HexFetchUtils.buildTailwindColors(source);
-  await safeWriteClipboard(output);
-  setStatus("Tailwind color config copied to clipboard.");
+  await exportTextAsset(
+    "tailwind.config.cjs",
+    output,
+    "text/plain",
+    "Tailwind config copied to clipboard and downloaded as a config file."
+  );
+}
+
+async function exportScssVariables() {
+  if (!state.palette || !state.palette.colors.length) {
+    setStatus("Scan colors before exporting.", true);
+    return;
+  }
+
+  const source = getFilteredColors(state.palette.colors, state.activeRoleFilter);
+  const output = HexFetchUtils.buildScssVariables(source);
+  await exportTextAsset(
+    "hexfetch-variables.scss",
+    output,
+    "text/plain",
+    "SCSS variables copied to clipboard and downloaded as a .scss file."
+  );
+}
+
+async function exportLessVariables() {
+  if (!state.palette || !state.palette.colors.length) {
+    setStatus("Scan colors before exporting.", true);
+    return;
+  }
+
+  const source = getFilteredColors(state.palette.colors, state.activeRoleFilter);
+  const output = HexFetchUtils.buildLessVariables(source);
+  await exportTextAsset(
+    "hexfetch-variables.less",
+    output,
+    "text/plain",
+    "Less variables copied to clipboard and downloaded as a .less file."
+  );
+}
+
+async function exportDesignTokens() {
+  if (!state.palette || !state.palette.colors.length) {
+    setStatus("Scan colors before exporting.", true);
+    return;
+  }
+
+  const source = getFilteredColors(state.palette.colors, state.activeRoleFilter);
+  const output = HexFetchUtils.buildDesignTokensJson(source);
+  await exportTextAsset(
+    "hexfetch-design-tokens.json",
+    output,
+    "application/json",
+    "Design tokens JSON copied to clipboard and downloaded as a file."
+  );
 }
 
 async function exportContrastReport() {
@@ -645,6 +982,18 @@ async function exportContrastReport() {
   const markdown = buildContrastReportMarkdown(state.palette);
   await safeWriteClipboard(markdown);
   setStatus("Contrast report copied as markdown.");
+}
+
+async function previewContrastPair() {
+  if (!state.contrastTextHex || !state.contrastBackgroundHex) {
+    setStatus("Select two colors to preview contrast.", true);
+    return;
+  }
+
+  const ratio = HexFetchUtils.contrastRatio(state.contrastTextHex, state.contrastBackgroundHex);
+  const rating = HexFetchUtils.wcagRating(ratio, { largeText: state.contrastLargeText });
+  setStatus(`${state.contrastTextHex} on ${state.contrastBackgroundHex} = ${formatContrastRatio(ratio)} (${rating.label})`);
+  renderManualContrastPreview();
 }
 
 function getPaletteHexList(palette) {
@@ -666,7 +1015,8 @@ function loadSavedPalette(paletteId) {
     colors: selected.colors,
     gradients: selected.gradients || [],
     scannedElements: 0,
-    timestamp: selected.savedAt
+    timestamp: selected.savedAt,
+    tags: selected.tags || []
   };
 
   renderPalette(state.palette.colors);
@@ -685,6 +1035,33 @@ async function copySavedPalette(paletteId) {
 
   await safeWriteClipboard(getPaletteHexList(selected).join("\n"));
   setStatus(`Copied ${selected.name}.`);
+}
+
+async function shareSavedPalette(paletteId) {
+  const selected = state.savedPalettes.find((item) => item.id === paletteId);
+  if (!selected) {
+    setStatus("Saved palette not found.", true);
+    return;
+  }
+
+  await safeWriteClipboard(encodeShareCode({ exportedAt: Date.now(), palettes: [selected] }));
+  setStatus(`Copied share code for ${selected.name}.`);
+}
+
+async function toggleSavedPalettePin(paletteId) {
+  const updated = state.savedPalettes.map((palette) => {
+    if (palette.id !== paletteId) {
+      return palette;
+    }
+
+    return {
+      ...palette,
+      pinned: !palette.pinned
+    };
+  });
+
+  await persistSavedPalettes(updated.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.savedAt - a.savedAt));
+  setStatus("Updated saved palette pin state.");
 }
 
 async function deleteSavedPalette(paletteId) {
@@ -714,12 +1091,26 @@ async function savePalette() {
     hostname,
     savedAt: Date.now(),
     colors: state.palette.colors,
-    gradients: state.palette.gradients
+    gradients: state.palette.gradients,
+    tags: HexFetchUtils.buildPaletteTags(state.palette.colors),
+    summary: HexFetchUtils.buildPaletteSummary(state.palette.colors),
+    pinned: false,
+    note: "",
+    thumbnail: await captureCurrentTabThumbnail().catch(() => "")
   };
 
   const updated = [palette, ...state.savedPalettes].slice(0, 20);
   await persistSavedPalettes(updated);
   setStatus(`Palette saved (${updated.length} total).`);
+}
+
+async function captureCurrentTabThumbnail() {
+  const tab = state.activeTab || (await getActiveTab());
+  if (!tab || !tab.windowId) {
+    return "";
+  }
+
+  return chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
 }
 
 function normalizeImportedPalette(item) {
@@ -733,13 +1124,46 @@ function normalizeImportedPalette(item) {
     hostname: item.hostname || "imported.local",
     savedAt: Number(item.savedAt) || Date.now(),
     colors: item.colors,
-    gradients: Array.isArray(item.gradients) ? item.gradients : []
+    gradients: Array.isArray(item.gradients) ? item.gradients : [],
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    summary: typeof item.summary === "string" ? item.summary : "",
+    pinned: Boolean(item.pinned),
+    note: typeof item.note === "string" ? item.note : "",
+    thumbnail: typeof item.thumbnail === "string" ? item.thumbnail : ""
   };
 }
 
-function downloadTextFile(filename, content, contentType) {
+async function downloadTextFile(filename, content, contentType) {
   const blob = new Blob([content], { type: contentType });
   const url = URL.createObjectURL(blob);
+  if (chrome.downloads && typeof chrome.downloads.download === "function") {
+    try {
+      await new Promise((resolve, reject) => {
+        chrome.downloads.download({
+          url,
+          filename,
+          saveAs: true
+        }, (downloadId) => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            reject(new Error(lastError.message));
+            return;
+          }
+
+          if (typeof downloadId !== "number") {
+            reject(new Error("Unable to start download."));
+            return;
+          }
+
+          resolve(downloadId);
+        });
+      });
+      return;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
@@ -760,7 +1184,7 @@ async function exportSavedPalettesJson() {
 
   const content = JSON.stringify(payload, null, 2);
   const filename = `hexfetch-palettes-${new Date().toISOString().slice(0, 10)}.json`;
-  downloadTextFile(filename, content, "application/json");
+  await downloadTextFile(filename, content, "application/json");
   setStatus(`Exported ${state.savedPalettes.length} saved palettes.`);
 }
 
@@ -802,6 +1226,40 @@ async function importSavedPalettesJson(file) {
   setStatus(`Imported ${normalized.length} palettes.`);
 }
 
+async function importShareCodeFromPrompt() {
+  const input = window.prompt("Paste a HexFetch share code:");
+  if (!input) {
+    return;
+  }
+
+  const parsed = decodeShareCode(input);
+  if (!parsed || !Array.isArray(parsed.palettes)) {
+    setStatus("That share code is invalid.", true);
+    return;
+  }
+
+  const normalized = parsed.palettes
+    .map(normalizeImportedPalette)
+    .filter(Boolean);
+
+  if (!normalized.length) {
+    setStatus("No valid palettes found in share code.", true);
+    return;
+  }
+
+  const existingById = new Map(state.savedPalettes.map((item) => [item.id, item]));
+  for (const item of normalized) {
+    existingById.set(item.id, item);
+  }
+
+  const merged = Array.from(existingById.values())
+    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.savedAt - a.savedAt)
+    .slice(0, 50);
+
+  await persistSavedPalettes(merged);
+  setStatus(`Imported ${normalized.length} palettes from share code.`);
+}
+
 async function hydrateFromLastQuickScan() {
   const result = await chrome.storage.local.get([LAST_SCAN_KEY]);
   const last = result[LAST_SCAN_KEY];
@@ -837,14 +1295,22 @@ async function hydrateInspectorState() {
 
 function wireEvents() {
   ui.scanColorsBtn.addEventListener("click", scanColors);
+  ui.scanSelectedBtn.addEventListener("click", scanSelectedElement);
   ui.toggleInspectorBtn.addEventListener("click", toggleInspector);
+  ui.applyPaletteBtn.addEventListener("click", () => applyPaletteToPage().catch((err) => setStatus(err.message, true)));
+  ui.clearAppliedPaletteBtn.addEventListener("click", () => clearAppliedPalette().catch((err) => setStatus(err.message, true)));
   ui.copyAllBtn.addEventListener("click", () => copyAllColors().catch((err) => setStatus(err.message, true)));
   ui.exportCssBtn.addEventListener("click", () => exportCssVariables().catch((err) => setStatus(err.message, true)));
   ui.exportTailwindBtn.addEventListener("click", () => exportTailwindConfig().catch((err) => setStatus(err.message, true)));
+  ui.exportScssBtn.addEventListener("click", () => exportScssVariables().catch((err) => setStatus(err.message, true)));
+  ui.exportLessBtn.addEventListener("click", () => exportLessVariables().catch((err) => setStatus(err.message, true)));
+  ui.exportTokensBtn.addEventListener("click", () => exportDesignTokens().catch((err) => setStatus(err.message, true)));
   ui.exportContrastReportBtn.addEventListener("click", () => exportContrastReport().catch((err) => setStatus(err.message, true)));
   ui.savePaletteBtn.addEventListener("click", () => savePalette().catch((err) => setStatus(err.message, true)));
   ui.exportSavedJsonBtn.addEventListener("click", () => exportSavedPalettesJson().catch((err) => setStatus(err.message, true)));
+  ui.exportShareCodeBtn.addEventListener("click", () => exportShareCode().catch((err) => setStatus(err.message, true)));
   ui.importSavedJsonBtn.addEventListener("click", () => ui.importSavedJsonInput.click());
+  ui.importShareCodeBtn.addEventListener("click", () => importShareCodeFromPrompt().catch((err) => setStatus(err.message, true)));
   ui.importSavedJsonInput.addEventListener("change", () => {
     const [file] = ui.importSavedJsonInput.files || [];
     importSavedPalettesJson(file)
@@ -854,6 +1320,24 @@ function wireEvents() {
       });
   });
   ui.saveSettingsBtn.addEventListener("click", () => saveSettings().catch((err) => setStatus(err.message, true)));
+
+  if (ui.contrastTextSelect) {
+    ui.contrastTextSelect.addEventListener("change", () => {
+      state.contrastTextHex = ui.contrastTextSelect.value;
+      renderManualContrastPreview();
+    });
+  }
+
+  if (ui.contrastBackgroundSelect) {
+    ui.contrastBackgroundSelect.addEventListener("change", () => {
+      state.contrastBackgroundHex = ui.contrastBackgroundSelect.value;
+      renderManualContrastPreview();
+    });
+  }
+
+  if (ui.contrastPreviewBtn) {
+    ui.contrastPreviewBtn.addEventListener("click", () => previewContrastPair().catch((err) => setStatus(err.message, true)));
+  }
 
   for (const button of ui.roleFilterButtons) {
     button.addEventListener("click", () => {
@@ -920,6 +1404,16 @@ function wireEvents() {
       return;
     }
 
+    if (action === "share") {
+      shareSavedPalette(paletteId).catch((err) => setStatus(err.message, true));
+      return;
+    }
+
+    if (action === "pin") {
+      toggleSavedPalettePin(paletteId).catch((err) => setStatus(err.message, true));
+      return;
+    }
+
     if (action === "delete") {
       deleteSavedPalette(paletteId).catch((err) => setStatus(err.message, true));
     }
@@ -931,8 +1425,11 @@ async function init() {
   await loadSettings();
   updateRoleFilterUI();
   updateContrastControlUI();
+  updateContrastPairSelectors();
+  renderManualContrastPreview();
   setScanMeta("No scan yet.");
   renderContrast(null);
+  ui.clearAppliedPaletteBtn.disabled = true;
   await getActiveTab();
   await loadSavedPalettes();
   await hydrateFromLastQuickScan();

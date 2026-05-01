@@ -21,17 +21,95 @@
     return [":root {", ...lines, "}"].join("\n");
   }
 
+  function buildScssVariables(colors) {
+    const lines = colors.map((entry, index) => `$color-${index + 1}: ${entry.hex};`);
+    return lines.join("\n");
+  }
+
+  function buildLessVariables(colors) {
+    const lines = colors.map((entry, index) => `@color-${index + 1}: ${entry.hex};`);
+    return lines.join("\n");
+  }
+
   function buildTailwindColors(colors) {
     const keys = ["primary", "secondary", "accent", "muted", "neutral"];
     const lines = colors.map((entry, index) => {
       const fallbackKey = `color${index + 1}`;
       const key = keys[index] || fallbackKey;
-      return `    ${key}: \"${entry.hex}\"`;
+      return `      ${key}: \"${entry.hex}\"`;
     });
 
-    return ["colors: {", `${lines.join(",\n")}`, "  }"]
-      .join("\n")
-      .replace(/^colors:\s\{\n/, "colors: {\n");
+    return [
+      "module.exports = {",
+      "  theme: {",
+      "    extend: {",
+      "      colors: {",
+      ...lines.map((line, index) => `${line}${index === lines.length - 1 ? "" : ","}`),
+      "      }",
+      "    }",
+      "  }",
+      "};"
+    ].join("\n");
+  }
+
+  function buildDesignTokensJson(colors) {
+    const tokens = {};
+
+    colors.forEach((entry, index) => {
+      const key = `color-${index + 1}`;
+      tokens[key] = {
+        value: entry.hex,
+        type: "color"
+      };
+    });
+
+    return JSON.stringify(
+      {
+        "$schema": "https://design-tokens.github.io/community-group/format/",
+        colors: tokens
+      },
+      null,
+      2
+    );
+  }
+
+  function getPaletteFamilies(colors) {
+    const counts = new Map();
+
+    for (const entry of colors || []) {
+      const family = entry && entry.family ? entry.family : "unknown";
+      const current = counts.get(family) || 0;
+      counts.set(family, current + (entry && typeof entry.count === "number" ? entry.count : 1));
+    }
+
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([family, count]) => ({ family, count }));
+  }
+
+  function buildPaletteTags(colors) {
+    const families = getPaletteFamilies(colors)
+      .filter((entry) => entry.family && entry.family !== "unknown")
+      .slice(0, 4)
+      .map((entry) => `family:${entry.family}`);
+
+    const roles = [];
+    const safeColors = Array.isArray(colors) ? colors : [];
+    const roleNames = ["text", "background", "border"];
+
+    for (const role of roleNames) {
+      const roleCount = safeColors.reduce((sum, entry) => sum + ((entry.roles && entry.roles[role]) || 0), 0);
+      if (roleCount > 0) {
+        roles.push(`role:${role}`);
+      }
+    }
+
+    return Array.from(new Set([...families, ...roles])).slice(0, 6);
+  }
+
+  function buildPaletteSummary(colors) {
+    const families = getPaletteFamilies(colors);
+    return families.length ? families.map((entry) => `${entry.family} ${entry.count}`).join(", ") : "No color families detected";
   }
 
   function dedupeHexList(hexList) {
@@ -127,6 +205,11 @@
 
   window.HexFetchUtils = {
     buildCssVariables,
+    buildDesignTokensJson,
+    buildLessVariables,
+    buildPaletteTags,
+    buildPaletteSummary,
+    buildScssVariables,
     buildTailwindColors,
     contrastRatio,
     dedupeHexList,
