@@ -91,8 +91,24 @@ logo.png           - Extension icon (16x16, 32x32, 48x48, 128x128)
 
 ## Installation for Users
 
-### Option 1: Download Latest Release (Easiest)
-1. Go to [Releases](https://github.com/yourusername/HexFetch/releases) on GitHub
+### Option 1: One-Command Install (All Platforms)
+
+**macOS & Linux:**
+```bash
+curl -sL https://raw.githubusercontent.com/CodeWithMishu/HexFetch/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/CodeWithMishu/HexFetch/main/install.bat -OutFile install.bat; .\install.bat
+```
+
+Or download scripts directly:
+- **macOS/Linux:** [install.sh](install.sh)
+- **Windows:** [install.bat](install.bat)
+
+### Option 2: Download Latest Release (Easiest)
+1. Go to [Releases](https://github.com/CodeWithMishu/HexFetch/releases) on GitHub
 2. Download the latest `HexFetch.zip`
 3. Extract the zip file anywhere
 4. Open `chrome://extensions` in your browser
@@ -101,23 +117,35 @@ logo.png           - Extension icon (16x16, 32x32, 48x48, 128x128)
 7. Select the extracted HexFetch folder
 8. Done! Click the HexFetch icon on any website to get started
 
-### Option 2: Clone from GitHub (For Developers)
+### Option 3: Clone from GitHub (For Developers)
 ```bash
 git clone https://github.com/yourusername/HexFetch.git
 cd HexFetch
 ```
-Then follow steps 4-8 from Option 1.
+Then follow steps 4-8 from Option 2.
+
+### Option 4: Install via npm (Also Downloads Latest Release)
+```bash
+npm install hexfetch-extension
+```
+Then follow the folder location output to load in Chrome.
 
 ## Development Setup
 
 For contributors and developers:
-1. Clone or download the repository
-2. Open `chrome://extensions`
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/HexFetch.git
+cd HexFetch
+```
+
+2. Open `chrome://extensions` in Chrome
 3. Turn on **Developer mode** (toggle in top right)
 4. Click **Load unpacked**
 5. Select the HexFetch folder
 6. Open any website and click the HexFetch icon in your toolbar
-7. After code changes, reload the extension to see updates
+7. After code changes, reload the extension to see updates in real-time
 
 ## Quick Start
 

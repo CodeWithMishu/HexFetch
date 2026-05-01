@@ -1,0 +1,32 @@
+{
+  "name": "hexfetch-extension",
+  "version": "1.0.0",
+  "description": "Free, open-source Chrome extension to extract, analyze, and export webpage color palettes",
+  "keywords": [
+    "chrome-extension",
+    "color-palette",
+    "color-extraction",
+    "web-design",
+    "accessibility",
+    "wcag",
+    "contrast-ratio"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/HexFetch.git"
+  },
+  "homepage": "https://github.com/yourusername/HexFetch#readme",
+  "bugs": {
+    "url": "https://github.com/yourusername/HexFetch/issues"
+  },
+  "author": "Your Name",
+  "license": "MIT",
+  "scripts": {
+    "install:windows": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/yourusername/HexFetch/releases/download/latest/HexFetch.zip' -OutFile 'HexFetch.zip'; Expand-Archive -Path 'HexFetch.zip' -DestinationPath '.'; Write-Host 'Extracted to current folder. Open chrome://extensions and load unpacked.' }\"",
+    "install:mac": "curl -L https://github.com/yourusername/HexFetch/releases/download/latest/HexFetch.zip -o HexFetch.zip && unzip HexFetch.zip && echo 'Extracted to current folder. Open chrome://extensions and load unpacked.'",
+    "install:linux": "wget https://github.com/yourusername/HexFetch/releases/download/latest/HexFetch.zip && unzip HexFetch.zip && echo 'Extracted to current folder. Open chrome://extensions and load unpacked.'"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
