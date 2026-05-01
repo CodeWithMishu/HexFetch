@@ -87,14 +87,35 @@ background.js      - Service worker (keyboard commands, badge updates)
 logo.png           - Extension icon (16x16, 32x32, 48x48, 128x128)
 ```
 
-## Installation
+## Installation for Users
 
-1. Open `chrome://extensions`
-2. Turn on **Developer mode** (toggle in top right)
-3. Click **Load unpacked**
-4. Select the HexFetch folder
-5. Open any website and click the HexFetch icon in your toolbar
-6. During development, reload the extension after manifest changes
+### Option 1: Download Latest Release (Easiest)
+1. Go to [Releases](https://github.com/yourusername/HexFetch/releases) on GitHub
+2. Download the latest `HexFetch.zip`
+3. Extract the zip file anywhere
+4. Open `chrome://extensions` in your browser
+5. Turn on **Developer mode** (toggle in top right)
+6. Click **Load unpacked**
+7. Select the extracted HexFetch folder
+8. Done! Click the HexFetch icon on any website to get started
+
+### Option 2: Clone from GitHub (For Developers)
+```bash
+git clone https://github.com/yourusername/HexFetch.git
+cd HexFetch
+```
+Then follow steps 4-8 from Option 1.
+
+## Development Setup
+
+For contributors and developers:
+1. Clone or download the repository
+2. Open `chrome://extensions`
+3. Turn on **Developer mode** (toggle in top right)
+4. Click **Load unpacked**
+5. Select the HexFetch folder
+6. Open any website and click the HexFetch icon in your toolbar
+7. After code changes, reload the extension to see updates
 
 ## Quick Start
 
@@ -326,6 +347,21 @@ Contrast pairs are automatically analyzed and presented with visual preview.
 - Large pages (1000+ elements) may take 1-2 seconds to extract colors
 - Share codes are portable between browsers and machines
 - All data is stored locally; no cloud sync or external servers
+
+## Distribution
+
+HexFetch is distributed free on GitHub (no Chrome Web Store fee required). Users can install via:
+- **[GitHub Releases](https://github.com/yourusername/HexFetch/releases)** - Download and load unpacked
+- **GitHub Clone** - `git clone` and load unpacked for developers
+
+### Publishing a New Release
+1. Test thoroughly using the TESTING.md checklist
+2. Update version in `manifest.json`
+3. Create a git tag: `git tag v1.0.0`
+4. Push to GitHub: `git push origin main --tags`
+5. Go to GitHub → Releases → Create Release
+6. Attach a zip file of the extension folder
+7. Users can download and install immediately
 
 ## QA and Release
 
